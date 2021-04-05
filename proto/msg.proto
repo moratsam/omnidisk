@@ -1,0 +1,61 @@
+syntax = "proto3";
+package msg;
+
+option go_package = "gen/msg";
+
+
+//------------------<STRUCTS>
+message Offer{
+	string multiaddr = 1;
+	uint32 capacity = 2; //in MB
+	int64 timestamp = 3;
+	string signature = 4;
+}
+
+message Contract{
+	string owner_id = 1;
+	uint32 size = 2; //in MB
+	string cid = 3;
+	int64 expires = 4;
+	uint32 cardinality = 5;
+	uint32 datatype = 6;
+}
+//------------------</STRUCTS>
+//------------------<INTERNAL>
+message Message{
+	enum Type{
+		UNKNOWN = 0;
+		STORAGE_REQUEST = 1;
+		STORAGE_RESPONSE = 2;
+		RETRIEVAL_REQUEST = 3;
+		RETRIEVAL_RESPONSE = 4;
+	}
+
+	Type type = 1;
+	MsgStorageRequest storage_request  = 2;
+	MsgStorageResponse storage_response = 3;
+	MsgRetrievalRequest retrieval_request = 4;
+	MsgRetrievalResponse retrieval_response = 5;
+}
+
+//SEEK STORAGE
+//used during the direct comm between storage seeking node and storage offering node 
+message MsgStorageRequest{
+	string multiaddr = 1;
+	Contract contract = 2;
+}
+message MsgStorageResponse{
+	string multiaddr = 1;
+	bool done = 2;
+}
+
+message MsgRetrievalRequest{
+	string multiaddr = 1;
+	string owner_id = 2;
+	int64 timestamp = 3;
+	string signature = 4;
+}
+message MsgRetrievalResponse{
+	repeated string ipfs_links = 1;
+}
+//------------------</INTERNAL>

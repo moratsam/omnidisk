@@ -1,0 +1,86 @@
+#!/bin/bash
+
+SAVEIFS=$IFS
+IFS=$(echo -en "\n\b")
+
+TYPE=""
+if [ "$1" -eq 0 ]; then
+	TYPE="ARCHIVED"
+elif [ "$1" -eq 1 ]; then
+	TYPE="ARCHIVED_AND_ENCRYPTED"
+elif [ "$1" -eq 2 ]; then
+	TYPE="ENCRYPTED_AND_INDEXED"
+elif [ "$1" -eq 3 ]; then
+	TYPE="INDEXED"
+else
+	exit 1
+fi
+
+MAIN_CID=""
+if [ ! "$2" ]; then
+	exit 1
+else
+	MAIN_CID="$2"
+fi
+
+PASS=""
+if [ "$TYPE" = "ARCHIVED_AND_ENCRYPTED" ] || [ "$TYPE" = "ENCRYPTED_AND_INDEXED" ]; then
+	if [ ! "$3" ]; then
+		exit 1
+	else
+		PASS="$3"
+	fi
+fi
+	
+#MOVE TO RIGHT PLACE, CREATE DIRECTORIES
+
+mkdir -p ~/.omnidisk
+mkdir -p ~/.omnidisk/store
+mkdir -p ~/.omnidisk/store/"$MAIN_CID"
+cd ~/.omnidisk/store/"$MAIN_CID"
+STOREPATH=`echo $PWD`
+
+#########################################################
+
+if [ "$TYPE" = "ARCHIVED" ]; then
+	ipfs cat "$MAIN_CID" | unpigz | tar -xf -
+
+elif [ "$TYPE" = "ARCHIVED_AND_ENCRYPTED" ]; then
+	ipfs cat "$MAIN_CID" | gpg --batch -d --passphrase "$PASS" | unpigz  | tar -xf -
+
+else
+
+	ipfs get $MAIN_CID
+
+	if [ -d $MAIN_CID ]; then
+		#TODO search index file for matching cid to get folder name and rename
+		#search
+		#mv $cid $name
+		#cd $name
+
+		cd $MAIN_CID
+		ORG_PATH=`echo $PWD`
+		for file in `find . -type f`; do
+			cd `dirname "$file"`
+
+			if [ "$TYPE" = "ENCRYPTED_AND_INDEXED" ]; then
+				gpg --batch -d --passphrase "$PASS" `basename "$file"` | unpigz | tar -xf - && rm `basename "$file"`
+			elif [ "$TYPE" = "INDEXED" ]; then
+				cat `basename "$file"` | unpigz | tar -xf - && rm `basename "$file"`
+			fi
+
+			cd "$ORG_PATH"
+		done
+
+	else
+		if [ "$TYPE" = "ENCRYPTED_AND_INDEXED" ]; then
+			cat $MAIN_CID | gpg --batch -d --passphrase "$PASS" | unpigz  | tar -xf -
+		elif [ "$TYPE" = "INDEXED" ]; then
+			cat $MAIN_CID | unpigz  | tar -xf -
+		fi
+		rm $MAIN_CID
+	fi
+fi		
+
+
+IFS=$SAVEIFS

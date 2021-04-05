@@ -1,0 +1,5 @@
+#!/bin/bash
+
+protoc --go_out=../gen/api --go_opt=paths=source_relative --go-grpc_out=../gen/api --go-grpc_opt=paths=source_relative api.proto
+
+protoc --gofast_out=../ msg.proto

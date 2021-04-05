@@ -1,0 +1,210 @@
+#!/bin/bash
+
+SAVEIFS=$IFS
+IFS=$(echo -en "\n\b")
+
+TYPE=""
+if [ "$1" -eq 0 ]; then
+	TYPE="ARCHIVED"
+elif [ "$1" -eq 1 ]; then
+	TYPE="ARCHIVED_AND_ENCRYPTED"
+elif [ "$1" -eq 2 ]; then
+	TYPE="ENCRYPTED_AND_INDEXED"
+elif [ "$1" -eq 3 ]; then
+	TYPE="INDEXED"
+else
+	exit 1
+fi
+
+INPATH=""
+if [ ! "$2" ]; then
+	exit 1
+else
+	INPATH="$2"
+fi
+
+PASS=""
+if [ "$TYPE" = "ARCHIVED_AND_ENCRYPTED" ] || [ "$TYPE" = "ENCRYPTED_AND_INDEXED" ]; then
+	if [ ! "$3" ]; then
+		exit 1
+	else
+		PASS="$3"
+	fi
+fi
+	
+
+function remove_dir {
+	if [ -d "$1" ]; then
+		rm -r "$1"
+	fi
+}
+
+function remove_file {
+	if [ -f "$1" ]; then
+		rm "$1"
+	fi
+}
+
+#MOVE TO RIGHT PLACE, CREATE DIRECTORIES
+cd ` dirname "$INPATH"`
+
+BASENAME=`basename "$INPATH"`
+PREBASEDIR=`echo $PWD`
+
+mkdir -p ~/.omnidisk
+mkdir -p ~/.omnidisk/tmp
+cd ~/.omnidisk/tmp
+TMPPATH=`echo $PWD`
+
+GPG=$TMPPATH/GPG
+XXX=$TMPPATH/XXX
+INDEX_TREE=$TMPPATH/INDEX_TREE
+INDEX_FILE_priv=$TMPPATH/INDEX_FILE_priv
+INDEX_FILE_pub=$TMPPATH/INDEX_FILE_pub
+
+remove_dir $GPG
+remove_dir $XXX
+remove_dir $INDEX_TREE
+remove_file $INDEX_FILE_priv
+remove_file "$INDEX_FILE_priv.gpg"
+remove_file $INDEX_FILE_pub
+mkdir $GPG
+mkdir $XXX
+mkdir $INDEX_TREE
+
+cd $PREBASEDIR
+
+#SIZE_BEG=$(echo $(du -s ~/.ipfs/blocks) | awk '{print $1;}')
+SIZE=$(echo $(du -s "$BASENAME") | awk '{print $1;}')
+#########################################################
+
+if [ "$TYPE" = "ARCHIVED" ]; then
+	cid=`tar -cf - "$BASENAME" | pigz -9 | ipfs add --quiet --quieter -r` 
+
+	echo -e "$cid" >> $INDEX_FILE_pub
+	echo -e "$cid\t\t\t$BASENAME" >> $INDEX_FILE_priv
+
+elif [ "$TYPE" = "ARCHIVED_AND_ENCRYPTED" ]; then
+	cid=`tar -cf - "$BASENAME" | pigz -9 | gpg --batch -c --passphrase "$PASS" | ipfs add --quiet --quieter -r` 
+	
+	echo $cid
+	echo "$cid" >> $INDEX_FILE_pub
+	echo -e "$cid\t\t\t$BASENAME" >> $INDEX_FILE_priv
+
+else #INDEXING
+
+	cnt=0
+	#create dirs in index tree and gpg tree
+	for dir in `find "$BASENAME"* -type d`; do
+		mkdir $XXX/"$dir"
+		mkdir $GPG/"$dir"
+	done
+
+	CURR_FILE_DIRNAME=$PREBASEDIR #initialization is used just to echo "" to indexfile
+	#upload files to ipfs and create index files in $XXX
+	for file in `find "$BASENAME"* -type f`; do
+		#this is used just to print newlines between different dirs in private index file
+		TMP_FILE_DIRNAME=`dirname "$file"`
+		if [ ! "$TMP_FILE_DIRNAME" = "$CURR_FILE_DIRNAME" ]; then
+			echo "" >> $INDEX_FILE_priv
+		fi
+
+		CURR_FILE_DIRNAME=`dirname "$file"`
+		CURR_DIR=`echo $PWD`
+		CURR_FILENAME=`basename "$file"`
+
+		if [ "$TYPE" = "ENCRYPTED_AND_INDEXED" ]; then
+			cd "$CURR_FILE_DIRNAME" && tar -cf - "$CURR_FILENAME" | pigz -9 | gpg -o $GPG/"$CURR_FILE_DIRNAME"/$cnt --batch -c --passphrase "$PASS" && cd "$CURR_DIR"
+			cid=`ipfs add --quiet --quieter $GPG/"$CURR_FILE_DIRNAME"/$cnt`
+
+		elif [ "$TYPE" = "INDEXED" ]; then
+			cd "$CURR_FILE_DIRNAME" && tar -cf - "$CURR_FILENAME" | pigz -9 > $GPG/"$CURR_FILE_DIRNAME"/$cnt && cd "$CURR_DIR"
+			cid=`ipfs add --quiet --quieter $GPG/"$CURR_FILE_DIRNAME"/$cnt`
+
+		fi
+
+		echo $cid > $XXX/"$file"
+		echo "$cid" >> $INDEX_FILE_pub
+		echo -e "$cid\t$cnt\t\t$file" >> $INDEX_FILE_priv
+		cnt=$(($cnt+1))
+	done
+
+	echo "" >> $INDEX_FILE_priv
+
+	#upload dirs to ipfs and create index files for dirs in $XXX and add to index files
+	#add dirs to index files in reverse order
+	FIRST=true
+	lines_pub=`wc -l < $INDEX_FILE_pub`
+	lines_pub=$((1+$lines_pub))
+	lines_priv=`wc -l < $INDEX_FILE_priv`
+	lines_priv=$((1+$lines_priv))
+
+	for dir in `find "$BASENAME"* -type d`; do
+		if [ "$TYPE" = "ENCRYPTED_AND_INDEXED" ]; then
+			cid=`ipfs add --quiet --quieter -r $GPG/"$dir"`
+		elif [ "$TYPE" = "INDEXED" ]; then
+			cid=`ipfs add --quiet --quieter -r $GPG/"$dir"`
+		fi
+
+		echo $cid > $XXX/"$dir-DIR"
+
+		line_pub=`echo -e "$cid"`
+		line_priv=`echo -e "$cid\t-\tDIR\t$dir-DIR"`
+
+		if [ "$FIRST" = true ]; then
+			echo "$line_pub" >> $INDEX_FILE_pub
+			echo "$line_priv" >> $INDEX_FILE_priv
+			FIRST=false
+		else
+			sed -i "$lines_pub i\\$line_pub\\" $INDEX_FILE_pub
+			sed -i "$lines_priv i\\$line_priv\\" $INDEX_FILE_priv
+		fi
+
+		#echo -e "$cid\t\t\t" >> $INDEX_FILE_pub
+		#echo -e "$cid\t-\tDIR\t$dir-DIR" >> $INDEX_FILE_priv
+	done
+
+	#add INDEX TREE to ipfs and index files
+	cd $TMPPATH
+	mv $XXX/* $INDEX_TREE/
+	if [ "$TYPE" = "ENCRYPTED_AND_INDEXED" ]; then
+		cid=`tar -cf - "INDEX_TREE" | pigz -9 | gpg --batch -c --passphrase "$PASS" | ipfs add --quiet --quieter -r`
+	elif [ "$TYPE" = "INDEXED" ]; then
+		cid=`tar -cf - "INDEX_TREE" | pigz -9 | ipfs add --quiet --quieter -r`
+	fi
+
+	sed -i "1s/^/$cid\n/" $INDEX_FILE_pub
+	sed -i "1s/^/$cid\t-\t\tINDEX TREE\n\n/" $INDEX_FILE_priv
+
+	#echo -e "\n$cid\t-\t\tINDEX TREE" >> $INDEX_FILE
+
+fi
+
+
+#upload private index file to ipfs and add it to top of public index file
+if [ "$TYPE" = "ARCHIVED_AND_ENCRYPTED" ] || [ "$TYPE" = "ENCRYPTED_AND_INDEXED" ]; then
+	#cid=`gpg --batch -c --passphrase "$PASS" "$INDEX_FILE_priv" | ipfs add --quiet --quieter`
+	gpg --batch -c --passphrase "$PASS" "$INDEX_FILE_priv"
+	cid=`ipfs add --quiet --quieter "$INDEX_FILE_priv.gpg"`
+elif [ "$TYPE" = "ARCHIVED" ] || [ "$TYPE" = "INDEXED" ]; then
+	cid=`ipfs add --quiet --quieter "$INDEX_FILE_priv"`
+fi
+
+	sed -i "1s/^/$cid\n/" $INDEX_FILE_pub
+
+#upload public index file to ipfs
+	cid=`ipfs add --quiet --quieter "$INDEX_FILE_pub"`
+
+#	SIZE_FIN=$(echo $(du -s ~/.ipfs/blocks) | awk '{print $1;}')
+#	SIZE=$(($SIZE_FIN-$SIZE_BEG))
+
+	echo -n "$cid" "$SIZE"
+
+remove_dir $XXX
+remove_dir $GPG
+remove_dir $INDEX_TREE
+remove_file $INDEX_FILE_priv
+remove_file "$INDEX_FILE_priv.gpg"
+remove_file $INDEX_FILE_pub
+
+IFS=$SAVEIFS

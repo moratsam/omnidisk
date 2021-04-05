@@ -1,0 +1,3 @@
+#!/bin/bash
+
+go run cmd/main.go -port 55488 -bootstrap-only=true -privkey "omnidisk-bootstrap.privkey" 
