@@ -172,7 +172,7 @@ func startIpfsDaemon(logger *zap.Logger) error{
 }
 
 
-func StoreToMFS(datatype uint32, filepath, pass string, logger *zap.Logger) (string, uint32, error){
+func Ipfser(datatype uint32, filepath, pass string, logger *zap.Logger) (string, uint32, error){
 	if logger == nil{
 		logger = zap.NewNop()
 	}
@@ -227,6 +227,7 @@ func ipfsPin(cid string, logger *zap.Logger) error{
 func IpfsUnpinAll(cid string, logger *zap.Logger){
 	logger.Info("unpinning content from index file..")
 	cmd := "ipfs cat " + cid + " | while read line; do ipfs pin rm $line; done"
+	logger.Info("alo brate")
 	if _, err := executeCommand(cmd, logger); err != nil{
 		logger.Info("unpinning content from index file: FAILED")
 	}

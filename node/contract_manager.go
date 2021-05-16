@@ -52,9 +52,9 @@ func (cm *ContractManager) PrepareContract(filepath string, expires int64, cardi
 			cm.logger.Error("failed to obtain private key; cannot encrypt!", zap.Error(err))
 			return entities.Contract{}, err
 		}
-		cid, size, err = ipfs.StoreToMFS(datatype, filepath, pk, cm.logger)
+		cid, size, err = ipfs.Ipfser(datatype, filepath, pk, cm.logger)
 	} else{ //no encryption
-		cid, size, err = ipfs.StoreToMFS(datatype, filepath, "", cm.logger)
+		cid, size, err = ipfs.Ipfser(datatype, filepath, "", cm.logger)
 	}
 	if err != nil{
 		return entities.Contract{}, err
@@ -139,6 +139,7 @@ func getCandidates(logger *zap.Logger, sub events.Subscriber, c chan string, don
 				triedAddrs[addr] = true
 			case <- doneC:
 				close(c)
+				sub.Close() //close the subscriber
 				return
 		}
 	}
@@ -167,7 +168,7 @@ func (cm *ContractManager) SeekStorage(contract entities.Contract, sub events.Su
 		slot := getSlot(&acks)
 		if slot == -1{ //DONE
 			close(doneC)
-			go ipfs.IpfsUnpinAll(contract.Cid, cm.logger)
+			//go ipfs.IpfsUnpinAll(contract.Cid, cm.logger)
 			return "https://ipfs.io/ipfs/" + contract.Cid, nil
 		}
 
@@ -239,6 +240,8 @@ func (cm *ContractManager) RetrieveDataV2(datatype uint32, cid string, deindex b
 			}
 		}
 	}
+
+	sub.Close() //close the subscriber
 
 	if len(cids) == 0{
 		cm.logger.Info("no pub about stored data was heard.")

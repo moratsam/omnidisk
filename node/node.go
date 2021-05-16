@@ -140,7 +140,7 @@ func (n *node) publishEvent(evt events.Event){
 	*/
 }
 
-func (n *node) joinOmniManagerEvents(sub events.Subscriber){
+func (n *node) joinEvents(sub events.Subscriber){
 	for{
 		evt, err := sub.Next()
 		if err != nil{
@@ -304,7 +304,7 @@ func (n *node) Start(ctx context.Context, port uint16, pkFileName string) error{
 	n.logger.Debug("creating Connector")
 	connector, connectorEvtSub := NewConnector(n.logger, n, n.host, n.offerManager)
 	n.connector = connector
-	go n.joinOmniManagerEvents(connectorEvtSub)
+	go n.joinEvents(connectorEvtSub)
 
 	n.logger.Debug("creating ContractManager")
 	contractManager := NewContractManager(n.logger, n, n.connector)
@@ -350,7 +350,7 @@ func (n *node) Bootstrap(ctx context.Context, nodeAddrs []multiaddr.Multiaddr) e
 	omniManager, omniManagerEvtSub := NewOmniManager(n.logger, n, n.kadDHT, n.ps, n.contractManager, n.offerManager)
 	n.omniManager = omniManager
 	n.omniManager.JoinOmnidisk()
-	go n.joinOmniManagerEvents(omniManagerEvtSub)
+	go n.joinEvents(omniManagerEvtSub)
 
 	if len(nodeAddrs) == 0{
 		return nil
@@ -456,8 +456,6 @@ func (n *node) FindCustodians(filepath string, expires int64, cardinality, datat
 	}
 	n.logger.Info("seeking storage: DONE!")
 	n.logger.Info("DON'T LOSE THE FILE WITH YOUR PRIVATE KEY", zap.String("privKeyFileName", privKeyFileName))
-
-	sub.Close() //close the subscriber
 
 	return ipfsLink, nil
 }
@@ -588,7 +586,6 @@ func (n *node) RetrieveData(datatype uint32, cid string, deindex bool) ([]string
 	}
 	n.logger.Info("retrieving data: DONE")
 
-	sub.Close() //close the subscriber
 	return ipfsLinks, nil
 }
 
