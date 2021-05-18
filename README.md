@@ -11,7 +11,7 @@ ensure maximum reach the network is capable of NAT traversal and other
 Session Traversal Utilities for Nat.
 
 
-#Brief outline
+# Brief outline
 Every participant in the omnidisk network is called a node, the core func-
 tionality of which is built on top of the libp2p package. A node provides
 four services which are evoked locally via RPCs: SetOffer, FindCustodians,
