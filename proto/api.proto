@@ -4,9 +4,15 @@ package api;
 option go_package = "gen/api";
 
 service Api{
-	//..
+	rpc Ping(PingRequest) returns (PingResponse);
+
 	rpc SubscribeToEvents(SubscribeToEventsRequest) returns (stream Event);
-	//..
+
+	rpc SetOffer(SetOfferRequest) returns (SetOfferResponse);
+
+	rpc FindCustodians(FindCustodiansRequest) returns (FindCustodiansResponse);
+
+	rpc RetrieveData(RetrieveDataRequest) returns (RetrieveDataResponse);
 }
 
 
