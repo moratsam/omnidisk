@@ -75,19 +75,22 @@ mkdir $INDEX_TREE
 cd $PREBASEDIR
 
 #SIZE_BEG=$(echo $(du -s ~/.ipfs/blocks) | awk '{print $1;}')
-SIZE=$(echo $(du -s "$BASENAME") | awk '{print $1;}')
+SIZE=0
 #########################################################
 
 if [ "$TYPE" = "ARCHIVED" ]; then
-	cid=`tar -cf - "$BASENAME" | pigz -9 | ipfs add --quiet --quieter -r` 
+	tar -cf - "$BASENAME" | pigz -9 > /tmp/UPPITY
+	SIZE=$(($SIZE+`stat -c %s /tmp/UPPITY`))
+       	cid=`ipfs add --quiet --quieter /tmp/UPPITY`
 
-	echo -e "$cid" >> $INDEX_FILE_pub
+	echo "$cid" >> $INDEX_FILE_pub
 	echo -e "$cid\t\t\t$BASENAME" >> $INDEX_FILE_priv
 
 elif [ "$TYPE" = "ARCHIVED_AND_ENCRYPTED" ]; then
-	cid=`tar -cf - "$BASENAME" | pigz -9 | gpg --batch -c --passphrase "$PASS" | ipfs add --quiet --quieter -r` 
+	tar -cf - "$BASENAME" | pigz -9 | gpg --batch -c --passphrase "$PASS" > /tmp/UPPITY
+	SIZE=$(($SIZE+`stat -c %s /tmp/UPPITY`))
+	cid=`ipfs add --quiet --quieter /tmp/UPPITY` 
 	
-	echo $cid
 	echo "$cid" >> $INDEX_FILE_pub
 	echo -e "$cid\t\t\t$BASENAME" >> $INDEX_FILE_priv
 
@@ -195,10 +198,20 @@ fi
 #upload public index file to ipfs
 	cid=`ipfs add --quiet --quieter "$INDEX_FILE_pub"`
 
-#	SIZE_FIN=$(echo $(du -s ~/.ipfs/blocks) | awk '{print $1;}')
-#	SIZE=$(($SIZE_FIN-$SIZE_BEG))
 
-	echo -n "$cid" "$SIZE"
+tmpsize=`du -B 1 GPG | tail -1 | awk '{print $1;}'`
+SIZE=$(($SIZE+$tmpsize))
+tmpsize=`du -B 1 XXX | tail -1 | awk '{print $1;}'`
+SIZE=$(($SIZE+$tmpsize))
+tmpsize=`du -B 1 INDEX_TREE | tail -1 | awk '{print $1;}'`
+SIZE=$(($SIZE+$tmpsize))
+tmpsize=`du -B 1 INDEX_FILE_priv.gpg | tail -1 | awk '{print $1;}'`
+SIZE=$(($SIZE+$tmpsize))
+tmpsize=`du -B 1 INDEX_FILE_pub | tail -1 | awk '{print $1;}'`
+SIZE=$(($SIZE+$tmpsize))
+
+echo -n "$cid" "$SIZE"
+
 
 remove_dir $XXX
 remove_dir $GPG
@@ -206,5 +219,6 @@ remove_dir $INDEX_TREE
 remove_file $INDEX_FILE_priv
 remove_file "$INDEX_FILE_priv.gpg"
 remove_file $INDEX_FILE_pub
+remove_file /tmp/UPPITY
 
 IFS=$SAVEIFS

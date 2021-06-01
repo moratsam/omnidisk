@@ -66,20 +66,21 @@ func Subdei(datatype uint32, cid, pass string, deindex bool, logger *zap.Logger)
 func ipfser(datatype uint32, filepath, pass string, logger *zap.Logger) (string, uint32, error){
 	datatypeStr := strconv.Itoa(int(datatype))
 
-	logger.Info("executing ipfser..")
 	var cmd string
 	if datatype == 1 || datatype == 2{
 		cmd = "ipfser " + datatypeStr + " " + filepath + " " + pass
 	} else{
 		cmd = "ipfser " + datatypeStr + " " + filepath
 	}
+	logger.Info("executing ipfser..")
+	beg := time.Now()
 	out, err := executeCommand(cmd, logger)
 	if err != nil{
 		logger.Error("failed to execute ipfser command", zap.Error(err))
 		return "", 0, err
 	}
 	logger.Info("successfuly added content to ipfs")
-
+	logger.Info("ipfser time", zap.String("time", (time.Since(beg)).String()))
 	outs := strings.Split(string(out), " ")
 	if len(outs) != 2{
 		logger.Error("unrecognized ipfser output")
@@ -87,13 +88,13 @@ func ipfser(datatype uint32, filepath, pass string, logger *zap.Logger) (string,
 	}
 
 	cid, sizeStr := outs[0], outs[1]
-
 	sizeInt, err := strconv.Atoi(sizeStr)
 	if err != nil{
 		logger.Error("failed to convert ipfs content size", zap.Error(err))
 		return "", 0, err
 	}
-	size := uint32(1 + sizeInt /(1000) ) //to get MB + some buffer
+	size := uint32(1 + sizeInt /(1000000) ) //to get MB + some buffer
+	logger.Info("content size", zap.Int("size", int(size)))
 
 	return cid, size, nil
 }
