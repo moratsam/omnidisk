@@ -1,0 +1,3 @@
+#!/bin/bash
+
+grpcurl -d '{"datatype":42, "cid":"QmZyzE7N1Tg2QwHiQe8Zibo8Q8tmrP5kUMuuZ1APoy4RZg", "deindex":false}' -plaintext -proto ../proto/api.proto localhost:$1 api.Api/RetrieveData

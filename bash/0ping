@@ -1,0 +1,3 @@
+#!/bin/bash
+
+grpcurl -d '{}' -plaintext -proto ../proto/api.proto localhost:$1 api.Api/Ping

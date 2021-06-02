@@ -38,7 +38,9 @@ func Dei(datatype uint32, cid, pass string, deindex bool, logger *zap.Logger){
 	} else{
 		cmd = "dei " + datatypeStr + " " + cid + " " + strconv.FormatBool(deindex)
 	}
+	beg := time.Now()
 	out, err := executeCommand(cmd, logger)
+	logger.Info("dei time", zap.String("time", (time.Since(beg)).String()))
 	if err != nil{
 		logger.Info("retrieving data from contract: FAILED")
 		logger.Debug(string(out))

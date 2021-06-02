@@ -186,7 +186,7 @@ func (cm *ContractManager) RetrieveDataV2(datatype uint32, cid string, deindex b
 	var cids []string
 	var datatypes []uint32
 
-	if datatype != 666 && cid != ""{
+	if datatype != 42 && cid != ""{
 		cm.logger.Info("searching for specific content..")
 		cids = append(cids, cid)
 
@@ -208,7 +208,7 @@ func (cm *ContractManager) RetrieveDataV2(datatype uint32, cid string, deindex b
 
 	cm.logger.Info("listening for pubs..")
 	for{ //spend 1 min waiting for all contract pubs with my ID
-		if timeInit.Add(33 * time.Second).Before(time.Now()){
+		if timeInit.Add(60 * time.Second).Before(time.Now()){
 			cm.logger.Info("listening for pubs: DONE")
 			break
 		}
